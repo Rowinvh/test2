@@ -1,0 +1,121 @@
+import { useState } from "react";
+import axios from "axios";
+
+export default function Home() {
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [status, setStatus] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus("Bezig met aanvragen...");
+
+    try {
+      const panelUrl = "https://blokbaas.nl"; // Vervang dit met jouw Pterodactyl URL
+      const apiKey = process.env.NEXT_PUBLIC_PTERODACTYL_API_KEY;
+
+      // Genereer een random poort tussen 25000 en 25999
+      const randomPort = Math.floor(Math.random() * (25999 - 25000 + 1)) + 25000;
+
+      // 1. Maak gebruiker aan
+      const user = await axios.post(
+        `${panelUrl}/api/application/users`,
+        {
+          username: username,
+          email: email,
+          first_name: username,
+          last_name: "GratisGebruiker",
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const userId = user.data.attributes.id;
+
+      // 2. Maak server aan voor de gebruiker
+      await axios.post(
+        `${panelUrl}/api/application/servers`,
+        {
+          name: `${username}-server`,
+          user: userId,
+          egg: 1, // ID van Minecraft Egg
+          docker_image: "ghcr.io/pterodactyl/yolks:java_17",
+          startup: "java -Xms128M -Xmx256M -jar server.jar nogui",
+          environment: {
+            DL_VERSION: "latest",
+            SERVER_JARFILE: "server.jar",
+            SERVER_PORT: randomPort.toString()
+          },
+          limits: {
+            memory: 4096,
+            swap: 0,
+            disk: 1024,
+            io: 500,
+            cpu: 400,
+          },
+          feature_limits: {
+            databases: 0,
+            allocations: 1,
+          },
+          allocation: {
+            default: 1, // ID van beschikbare allocatie
+            ports: [
+              {
+                port: randomPort,
+                ip: "0.0.0.0" // Pas aan naar je server IP indien nodig
+              }
+            ]
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      setStatus("Server succesvol aangemaakt!");
+    } catch (error) {
+      console.error(error);
+      setStatus("Er is iets misgegaan. Controleer de API key en instellingen.");
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 className="text-3xl font-bold mb-4">Gratis Minecraft Server Aanvragen</h1>
+      <form onSubmit={handleSubmit} className="w-full max-w-sm">
+        <input
+          type="text"
+          placeholder="Gebruikersnaam"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full p-2 mb-2 border rounded"
+          required
+        />
+        <input
+          type="email"
+          placeholder="E-mail"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
+          required
+        />
+        <button
+          type="submit"
+          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+        >
+          Start Server
+        </button>
+      </form>
+      {status && <p className="mt-4 text-center">{status}</p>}
+    </div>
+  );
+}
